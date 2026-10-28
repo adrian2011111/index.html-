@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10251b">
+<title>Egg Radar Mobile</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1510;--panel:#13251b;--line:#294534;--green:#83f0a5;--muted:#b7c9bd;--yellow:#ffd166}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#10271b,#0b1510 55%);font:16px system-ui,-apple-system,sans-serif;color:#f2fff5;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom)}
+main{max-width:760px;margin:auto;padding:18px 0 32px}.head,.row{display:flex;align-items:center;gap:12px}.head{justify-content:space-between}.logo{font-size:1.35rem;font-weight:850;letter-spacing:.08em;color:var(--green)}.sub,.muted,small{color:var(--muted)}.card{background:#13251beF;border:1px solid var(--line);border-radius:18px;padding:16px;margin:14px 0}.pill{font-size:.75rem;border:1px solid #456a51;border-radius:999px;padding:5px 9px;color:var(--green)}h1,h2,p{margin-top:0}h1{font-size:1.25rem;margin-bottom:4px}h2{font-size:1rem;margin-bottom:12px}label{display:block;margin:12px 0 6px;font-size:.9rem;color:var(--muted)}select,button{width:100%;font:inherit;border-radius:12px;padding:12px;background:#0c1911;color:#f2fff5;border:1px solid #3a5c44}button{background:var(--green);color:#092012;font-weight:750;border:0;cursor:pointer;margin-top:10px}button.secondary{background:#1b3324;color:#f2fff5;border:1px solid #456a51}button:disabled{opacity:.5}.status{padding:10px 12px;border-radius:12px;background:#0b1911;color:var(--muted);font-size:.9rem;line-height:1.4}.status.error{border:1px solid #89544a;color:#ffd6ce}.server{border:1px solid var(--line);padding:13px;border-radius:14px;margin-top:10px;background:#0e1d14}.server-top{display:flex;justify-content:space-between;gap:8px;align-items:start}.count{font-weight:800;color:var(--green);white-space:nowrap}.server p{margin:7px 0;color:var(--muted);font-size:.88rem}.join{display:block;text-align:center;text-decoration:none;border-radius:10px;background:var(--green);color:#092012;padding:11px;font-weight:800;margin-top:10px}.empty{padding:22px;text-align:center;border:1px dashed #456a51;border-radius:14px;color:var(--muted)}.foot{font-size:.82rem;color:var(--muted);line-height:1.5}.toolbar{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:420px){.toolbar{grid-template-columns:1fr}.card{padding:13px}}
+</style>
+</head>
+<body><main>
+<header class="head"><div><div class="logo">◎ EGG RADAR</div><div class="sub">STEAL AN EGG · SAFARI MOBILE</div></div><span class="pill">PUBLIC SERVERS</span></header>
+<section class="card">
+<h1>Buscador de servidores</h1><p class="muted">Juego configurado: Place ID <strong>107778070777162</strong></p>
+<div class="toolbar">
+<div><label for="rarity">Rareza</label><select id="rarity"><option>Todos</option><option>Divinos</option><option>Secretos</option><option>Especiales</option></select></div>
+<div><label for="size">Tamaño</label><select id="size"><option>Enormes</option><option>Todos</option><option>Gigantes o mayores</option></select></div>
+</div>
+<button id="load">Buscar servidores públicos</button>
+<button id="more" class="secondary" hidden>Cargar más servidores</button>
+<div id="status" class="status" role="status" aria-live="polite" style="margin-top:12px">Listo para consultar Roblox. Los datos de huevos no se incluyen en la lista pública de servidores.</div>
+</section>
+<section class="card"><h2>Resultados de servidores</h2><div id="results"><div class="empty">Todavía no se ha hecho ninguna consulta.</div></div></section>
+<section class="card"><h2>Qué significa cada dato</h2><p class="foot"><strong>Ocupación:</strong> jugadores actuales / capacidad, si Roblox devuelve esos campos.</p><p class="foot"><strong>Huevos enormes:</strong> no disponible con esta API. Los filtros de rareza y tamaño son preferencias guardadas en el panel; no se pueden aplicar a servidores sin datos del juego.</p><p class="foot">Si Safari bloquea la consulta por CORS o Roblox limita las solicitudes, la página mostrará el error real. Para operación estable podría hacer falta un pequeño backend alojado que consulte la API pública y reenvíe solo esos datos, respetando los límites de Roblox.</p></section>
+<footer class="foot">Los enlaces de unión abren Roblox para intentar entrar en el servidor elegido. No garantizan que siga disponible ni que se complete la conexión.</footer>
+</main>
+<script>
+(() => {
+ const PLACE_ID = "107778070777162";
+ let cursor = null, busy = false;
+ const $ = id => document.getElementById(id);
+ const status = (msg, err=false) => { $("status").textContent=msg; $("status").className="status"+(err?" error":""); };
+ const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ function joinUrl(id) {
+   return "roblox://experiences/start?placeId="+encodeURIComponent(PLACE_ID)+"&gameInstanceId="+encodeURIComponent(id);
+ }
+ function render(servers) {
+   const root=$("results");
+   if (!servers.length && root.dataset.hasResults !== "1") root.innerHTML="";
+   root.dataset.hasResults="1";
+   if (!servers.length && !root.children.length) { root.innerHTML='<div class="empty">Roblox no devolvió servidores en esta página.</div>'; return; }
+   for (const s of servers) {
+     if (!s || !s.id) continue;
+     const node=document.createElement("article"); node.className="server";
+     const playing=Number.isFinite(Number(s.playing))?Number(s.playing):null;
+     const max=Number.isFinite(Number(s.maxPlayers))?Number(s.maxPlayers):null;
+     const occupancy=playing!==null && max!==null ? `${playing} / ${max} jugadores` : "Ocupación no disponible";
+     const count=playing!==null && max!==null ? `${playing}/${max}` : "—";
+     node.innerHTML=`<div class="server-top"><strong>Servidor público</strong><span class="count">${esc(count)}</span></div>
+       <p>${esc(occupancy)}</p><p>ID: <code>${esc(s.id)}</code></p>
+       <p>Huevos enormes: <strong>No disponible</strong></p>
+       <a class="join" href="${esc(joinUrl(s.id))}">Intentar unirse en Roblox</a>`;
+     root.appendChild(node);
+   }
+ }
+ async function fetchPage(append=false) {
+   if (busy) return; busy=true; $("load").disabled=true; $("more").disabled=true;
+   if (!append) { cursor=null; $("results").innerHTML=""; delete $("results").dataset.hasResults; }
+   status("Consultando la lista pública de Roblox…");
+   try {
+     let url=`https://games.roblox.com/v1/games/${PLACE_ID}/servers/Public?sortOrder=Asc&limit=100`;
+     if(cursor) url += "&cursor="+encodeURIComponent(cursor);
+     const response=await fetch(url,{method:"GET",mode:"cors",credentials:"omit",headers:{"Accept":"application/json"}});
+     if(!response.ok) throw new Error(`Roblox respondió HTTP ${response.status}.`);
+     const data=await response.json();
+     if(!Array.isArray(data.data)) throw new Error("La respuesta de Roblox no tenía el formato esperado.");
+     render(data.data);
+     cursor=data.nextPageCursor || null;
+     $("more").hidden=!cursor;
+     status(`Consulta completada: ${data.data.length} servidores devueltos por Roblox. Los huevos no están incluidos en estos datos.`);
+     if(!data.data.length && !append) $("results").innerHTML='<div class="empty">La API devolvió cero servidores en esta respuesta.</div>';
+   } catch(e) {
+     const msg = e instanceof TypeError ? "Safari no pudo leer la API desde esta página (posible bloqueo CORS o red). No se han inventado resultados. Para resolverlo, usa un backend HTTPS propio que consulte la API pública." : (e.message || "Error desconocido.");
+     status(msg,true);
+     if(!$("results").children.length) $("results").innerHTML='<div class="empty">No hay resultados confirmados. Reintenta más tarde o conecta un backend compatible.</div>';
+   } finally { busy=false; $("load").disabled=false; $("more").disabled=false; }
+ }
+ $("load").addEventListener("click",()=>fetchPage(false));
+ $("more").addEventListener("click",()=>fetchPage(true));
+})();
+</script></body></html>
